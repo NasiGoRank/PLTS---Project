@@ -2,9 +2,7 @@ name: Refresh PLTS monitoring
 
 on:
   schedule:
-    # Runs at minute 2, 7, 12, 17, etc.
-    - cron: "2-59/5 * * * *"
-
+    - cron: "*/5 * * * *"
   # Adds a button for manual testing.
   workflow_dispatch:
 
