@@ -1,0 +1,48 @@
+services:
+  - type: web
+    name: plts-monitoring-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: SCRAPE_INTERVAL_SECONDS
+        value: 300
+      - key: SCRAPE_REQUEST_TIMEOUT
+        value: 30
+      - key: SCRAPE_REQUEST_DELAY
+        value: 0.15
+      - key: AUTO_SCRAPE
+        value: "true"
+      - key: SCRAPE_ON_STARTUP
+        value: "true"
+      - key: ENABLE_HUAWEI
+        value: "true"
+      - key: ENABLE_KEHUA
+        value: "true"
+      - key: SUPABASE_CURRENT_TABLE
+        value: monitoring_current
+      - key: SUPABASE_HISTORY_TABLE
+        value: monitoring_snapshots
+      - key: HISTORY_INTERVAL_SECONDS
+        value: 3600
+      - key: HISTORY_RETENTION_DAYS
+        value: 30
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: HUAWEI_USERNAME
+        sync: false
+      - key: HUAWEI_PASSWORD
+        sync: false
+      - key: HUAWEI_COOKIES_JSON
+        sync: false
+      - key: KEHUA_COOKIES_JSON
+        sync: false

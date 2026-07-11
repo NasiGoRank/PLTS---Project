@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+*Cookies.json
+Cookies.json
+*.har
+monitoring_output/
+live_discovery/
+*_playwright_profile/
+monitoring_playwright_profile/
+monitoring_discovery_profile/

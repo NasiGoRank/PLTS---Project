@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+.vercel/
+
+# Secrets and browser state
+.env
+.env.*
+!**/.env.example
+*Cookies.json
+Cookies.json
+*.har
+*_playwright_profile/
+monitoring_playwright_profile/
+monitoring_discovery_profile/
+
+# Generated monitoring data
+monitoring_output/
+live_discovery/
+
+# Supabase local CLI state
+supabase/.temp/

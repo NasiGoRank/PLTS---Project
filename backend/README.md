@@ -1,0 +1,68 @@
+# PLTS monitoring backend for Render
+
+This FastAPI service runs the existing Huawei/Kehua scraper, normalizes the responses, and stores the result in Supabase.
+
+## Storage model
+
+After each scrape:
+
+1. The newest normalized payload is upserted into `monitoring_current`.
+2. A historical row is inserted into `monitoring_snapshots` when the history interval is due.
+3. History older than the configured retention period is deleted.
+
+The local `/tmp` output is only temporary diagnostic output. Supabase is the durable source used by API responses.
+
+## Required setup
+
+Run `../supabase/schema.sql` in the Supabase SQL Editor before starting this service.
+
+Required Render secrets:
+
+```text
+SUPABASE_URL
+SUPABASE_SECRET_KEY
+FRONTEND_ORIGIN
+HUAWEI_USERNAME
+HUAWEI_PASSWORD
+HUAWEI_COOKIES_JSON
+KEHUA_COOKIES_JSON
+```
+
+`SUPABASE_SECRET_KEY` may contain a current Supabase secret key or the legacy `service_role` key. It must remain server-side.
+
+## Render deployment
+
+For a monorepo, use the root `render.yaml`. For a backend-only repository, use this directory's `render.yaml`.
+
+Render commands are already configured:
+
+```text
+Build: pip install -r requirements.txt
+Start: uvicorn api:app --host 0.0.0.0 --port $PORT
+Health check: /health
+```
+
+## Endpoints
+
+- `GET /health`: process liveness, scraper state, and safe database configuration status.
+- `GET /ready`: confirms a current row exists in Supabase.
+- `GET /api/status`: latest scraper/database metadata.
+- `GET /api/current`: newest normalized dashboard payload from Supabase.
+- `GET /api/history`: historical snapshot metadata, optionally including payloads.
+
+## Local run
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+set -a; source .env; set +a
+uvicorn api:app --reload --host 0.0.0.0 --port 8000
+```
+
+Liveness-only smoke test:
+
+```bash
+AUTO_SCRAPE=false uvicorn api:app --host 127.0.0.1 --port 8000
+```
