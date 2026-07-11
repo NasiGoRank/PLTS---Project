@@ -17,7 +17,7 @@ services:
       - key: SCRAPE_REQUEST_DELAY
         value: 0.15
       - key: AUTO_SCRAPE
-        value: "true"
+        value: "false"
       - key: SCRAPE_ON_STARTUP
         value: "true"
       - key: ENABLE_HUAWEI
@@ -33,6 +33,8 @@ services:
       - key: HISTORY_RETENTION_DAYS
         value: 30
       - key: FRONTEND_ORIGIN
+        sync: false
+      - key: REFRESH_SECRET
         sync: false
       - key: SUPABASE_URL
         sync: false

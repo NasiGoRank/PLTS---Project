@@ -48,6 +48,7 @@ HUAWEI_USERNAME
 HUAWEI_PASSWORD
 HUAWEI_COOKIES_JSON
 KEHUA_COOKIES_JSON
+REFRESH_SECRET
 ```
 
 For each cookie variable, paste the complete JSON cookie export. Do not wrap the whole JSON in an additional pair of quotes.
@@ -117,6 +118,11 @@ GET /api/history?limit=24&include_payload=true
 ```
 
 History responses are capped at 168 rows per request.
+
+For the free Render deployment, an external scheduler calls `POST /api/refresh`
+every 10 minutes with `Authorization: Bearer <REFRESH_SECRET>`. Render runs with
+`AUTO_SCRAPE=false`, so each scheduled request produces exactly one scrape while
+also keeping the web service inside Render's idle window.
 
 ## Local development
 

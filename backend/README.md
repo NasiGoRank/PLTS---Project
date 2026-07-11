@@ -26,6 +26,7 @@ HUAWEI_USERNAME
 HUAWEI_PASSWORD
 HUAWEI_COOKIES_JSON
 KEHUA_COOKIES_JSON
+REFRESH_SECRET
 ```
 
 `SUPABASE_SECRET_KEY` may contain a current Supabase secret key or the legacy `service_role` key. It must remain server-side.
@@ -51,6 +52,17 @@ Health check: /health
 - `GET /api/status`: latest scraper/database metadata.
 - `GET /api/current`: newest normalized dashboard payload from Supabase.
 - `GET /api/history`: historical snapshot metadata, optionally including payloads.
+- `POST /api/refresh`: runs one authenticated scrape for an external scheduler.
+
+For the deployed free web service, set `AUTO_SCRAPE=false` and schedule a POST
+request every 10 minutes with this header:
+
+```text
+Authorization: Bearer YOUR_REFRESH_SECRET
+```
+
+The request can take 15–60 seconds because it waits for both upstream platforms
+and the Supabase write to finish. HTTP 409 means another refresh is still active.
 
 ## Local run
 

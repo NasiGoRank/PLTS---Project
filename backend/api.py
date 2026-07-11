@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import threading
 import traceback
 from contextlib import asynccontextmanager
@@ -11,7 +12,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -138,9 +139,9 @@ def summarize_sites(result: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def scrape_now() -> None:
+def scrape_now() -> bool:
     if not SCRAPE_LOCK.acquire(blocking=False):
-        return
+        return False
 
     try:
         set_state(running=True, last_started_at=now_iso(), last_error=None)
@@ -185,6 +186,40 @@ def scrape_now() -> None:
         )
     finally:
         SCRAPE_LOCK.release()
+    return True
+
+
+def refresh_authorized(authorization: str | None, expected_secret: str) -> bool:
+    if not authorization or not expected_secret:
+        return False
+    scheme, separator, provided_secret = authorization.partition(" ")
+    return (
+        bool(separator)
+        and scheme.lower() == "bearer"
+        and bool(provided_secret)
+        and secrets.compare_digest(provided_secret, expected_secret)
+    )
+
+
+def refresh_payload(state: dict[str, Any]) -> dict[str, Any]:
+    sites = {}
+    for name, summary in (state.get("last_site_summary") or {}).items():
+        success_count = int(summary.get("success_count") or 0)
+        failed_count = int(summary.get("failed_count") or 0)
+        auth_error_count = int(summary.get("auth_error_count") or 0)
+        sites[name] = {
+            "success": success_count > 0 and failed_count == 0 and auth_error_count == 0,
+            "successful_calls": success_count,
+            "failed_calls": failed_count,
+            "authentication_error": auth_error_count > 0,
+        }
+    return {
+        "status": "success" if state.get("last_success") else "failed",
+        "run_id": state.get("last_run_id"),
+        "scraped_at": state.get("last_finished_at"),
+        "history_saved": state.get("last_history_saved"),
+        "sites": sites,
+    }
 
 
 def scrape_loop() -> None:
@@ -232,7 +267,7 @@ def root() -> dict[str, Any]:
         "service": "PLTS Monitoring API",
         "version": app.version,
         "storage": "Supabase Postgres",
-        "endpoints": ["/health", "/ready", "/api/status", "/api/current", "/api/history"],
+        "endpoints": ["/health", "/ready", "/api/status", "/api/current", "/api/history", "/api/refresh"],
     }
 
 
@@ -348,5 +383,27 @@ def history(
 
     return JSONResponse(
         {"count": len(rows), "items": rows},
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )
+
+
+@app.post("/api/refresh")
+def refresh(authorization: str | None = Header(default=None)) -> JSONResponse:
+    expected_secret = os.getenv("REFRESH_SECRET", "").strip()
+    if not expected_secret:
+        raise HTTPException(status_code=503, detail="Scheduled refresh is not configured")
+    if not refresh_authorized(authorization, expected_secret):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid refresh credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not scrape_now():
+        raise HTTPException(status_code=409, detail="A monitoring refresh is already running")
+
+    state = get_state()
+    return JSONResponse(
+        status_code=200 if state.get("last_success") else 502,
+        content=refresh_payload(state),
         headers={"Cache-Control": "no-store, max-age=0"},
     )
