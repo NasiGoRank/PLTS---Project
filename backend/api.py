@@ -15,10 +15,14 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from env_loader import load_env_file
+
+ROOT = Path(__file__).resolve().parent
+load_env_file(ROOT / ".env")
+
 from scrape_monitoring import run_once
 from supabase_store import SupabaseStore
 
-ROOT = Path(__file__).resolve().parent
 RUNTIME_DIR = Path(os.getenv("RUNTIME_DIR", "/tmp/plts-monitoring"))
 OUT_DIR = RUNTIME_DIR / "monitoring_output"
 COOKIE_DIR = RUNTIME_DIR / "cookies"

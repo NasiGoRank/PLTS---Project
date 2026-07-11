@@ -128,9 +128,12 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-set -a; source .env; set +a
 uvicorn api:app --reload --host 0.0.0.0 --port 8000
 ```
+
+The backend loads `backend/.env` automatically for local development. Cookie
+JSON may be formatted on one line or across multiple lines. Existing process
+environment variables always take precedence over values in the file.
 
 For a liveness-only smoke test without scraping or Supabase access:
 

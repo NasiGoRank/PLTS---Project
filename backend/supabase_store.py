@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import base64
+import json
 import os
 import threading
 from dataclasses import dataclass
@@ -8,6 +10,22 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from supabase import Client, create_client
+
+
+def server_key_error(secret_key: str) -> str | None:
+    if secret_key.startswith("sb_publishable_"):
+        return "SUPABASE_SECRET_KEY contains a publishable browser key; use a server secret key"
+
+    if secret_key.startswith("eyJ"):
+        try:
+            payload_segment = secret_key.split(".", 2)[1]
+            padding = "=" * (-len(payload_segment) % 4)
+            payload = json.loads(base64.urlsafe_b64decode(payload_segment + padding))
+        except (IndexError, ValueError, json.JSONDecodeError):
+            return None
+        if payload.get("role") == "anon":
+            return "SUPABASE_SECRET_KEY contains a legacy anonymous JWT; use a server secret or service_role key"
+    return None
 
 
 def utc_now() -> datetime:
@@ -66,6 +84,10 @@ class SupabaseStore:
         missing = [name for name, value in (("SUPABASE_URL", url), ("SUPABASE_SECRET_KEY", secret_key)) if not value]
         if missing:
             return cls(None, f"Missing environment variable(s): {', '.join(missing)}")
+
+        key_error = server_key_error(secret_key)
+        if key_error:
+            return cls(None, key_error)
 
         try:
             history_interval = max(0, int(os.getenv("HISTORY_INTERVAL_SECONDS", "3600")))

@@ -29,6 +29,8 @@ KEHUA_COOKIES_JSON
 ```
 
 `SUPABASE_SECRET_KEY` may contain a current Supabase secret key or the legacy `service_role` key. It must remain server-side.
+Publishable (`sb_publishable_...`) and legacy `anon` keys are rejected because
+they cannot write to the private monitoring tables.
 
 ## Render deployment
 
@@ -57,9 +59,11 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-set -a; source .env; set +a
 uvicorn api:app --reload --host 0.0.0.0 --port 8000
 ```
+
+The service loads this local `.env` automatically and supports multiline JSON
+cookie exports. Runtime environment variables supplied by Render take precedence.
 
 Liveness-only smoke test:
 
