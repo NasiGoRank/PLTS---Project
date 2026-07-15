@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
 import json
 import os
 import time
@@ -11,6 +13,8 @@ from typing import Any
 from urllib.parse import parse_qs, quote, urlencode, urlparse
 
 import requests
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
 
 
 DROP_REQUEST_HEADERS = {
@@ -32,7 +36,10 @@ SENSITIVE_HEADERS = {
     "set-cookie",
 }
 
-AUTH_ERROR_CODES = {"901", "902", "903", 901, 902, 903}
+AUTH_ERROR_CODES = {"900", "901", "902", "903", "999", "111005", 900, 901, 902, 903, 999, 111005}
+
+KEHUA_PASSWORD_KEY = "clxslychxyl11988"
+KEHUA_SIGN_KEY = "%vSBtRMV4F8mr#dYofsG3lJOBv5vw*fZ"
 
 
 def now_stamp() -> str:
@@ -164,6 +171,95 @@ def huawei_password_login(session: requests.Session, site: dict[str, Any], usern
     return {"success": response.ok and final.ok, "status_code": final.status_code, "final_url": final.url}
 
 
+def aes_ecb_base64(value: str, key: str) -> str:
+    cipher = AES.new(key.encode("utf-8"), AES.MODE_ECB)
+    encrypted = cipher.encrypt(pad(value.encode("utf-8"), AES.block_size))
+    return base64.b64encode(encrypted).decode("ascii")
+
+
+def kehua_password_cipher(password: str) -> str:
+    return aes_ecb_base64(password, KEHUA_PASSWORD_KEY)
+
+
+def kehua_request_sign(payload: dict[str, str], timestamp_ms: int | None = None) -> str:
+    values = [f"{key}={payload[key]}" for key in sorted(payload) if payload[key] != ""]
+    timestamp = timestamp_ms if timestamp_ms is not None else int(time.time() * 1000)
+    if values:
+        digest = hashlib.md5(",".join(values).encode("utf-8")).hexdigest()
+        plaintext = f"{digest},{timestamp}"
+    else:
+        plaintext = str(timestamp)
+    return aes_ecb_base64(plaintext, KEHUA_SIGN_KEY)
+
+
+def kehua_form_headers(site: dict[str, Any], payload: dict[str, str]) -> dict[str, str]:
+    return {
+        "Accept": "application/json, text/plain, */*",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Origin": site["base_url"],
+        "Referer": site.get("login_url") or site["base_url"],
+        "clientType": "web",
+        "locale": "en",
+        "web_version": str(site.get("web_version") or "3.0.4"),
+        "sign": kehua_request_sign(payload),
+    }
+
+
+def kehua_check_auth(session: requests.Session, site: dict[str, Any], timeout: int) -> dict[str, Any]:
+    url = site.get("auth_check")
+    if not url:
+        return {"checked": False, "success": None, "reason": "not_configured"}
+    response = session.post(
+        url,
+        data="",
+        headers=kehua_form_headers(site, {}),
+        timeout=timeout,
+        allow_redirects=False,
+    )
+    body = try_parse_json(response.text)
+    app_code = body.get("code") if isinstance(body, dict) else None
+    return {
+        "checked": True,
+        "success": response.ok and app_code in (0, "0"),
+        "status_code": response.status_code,
+        "app_code": app_code,
+    }
+
+
+def response_authorization(response: requests.Response, body: Any) -> str | None:
+    for name, value in response.headers.items():
+        if name.lower() == "authorization" and value:
+            return str(value)
+    if isinstance(body, dict):
+        data = body.get("data")
+        if isinstance(data, dict) and data.get("authorization"):
+            return str(data["authorization"])
+    return None
+
+
+def kehua_password_login(session: requests.Session, site: dict[str, Any], username: str, password: str, timeout: int) -> dict[str, Any]:
+    payload = {"username": username, "password": kehua_password_cipher(password)}
+    response = session.post(
+        site.get("password_login") or f"{site['base_url']}/necp/server-user/auth/web/login",
+        data=urlencode(payload),
+        headers=kehua_form_headers(site, payload),
+        timeout=timeout,
+        allow_redirects=False,
+    )
+    body = try_parse_json(response.text)
+    app_code = body.get("code") if isinstance(body, dict) else None
+    authorization = response_authorization(response, body)
+    if authorization:
+        session.headers.update({"Authorization": authorization})
+        session.cookies.set("token", authorization, domain=site["base_domain"], path="/", secure=True)
+    return {
+        "success": response.ok and app_code in (0, "0") and bool(authorization),
+        "status_code": response.status_code,
+        "app_code": app_code,
+        "authorization_found": bool(authorization),
+    }
+
+
 def refresh_huawei_roarand(session: requests.Session, site: dict[str, Any], timeout: int) -> dict[str, Any]:
     keep_alive = site.get("keep_alive")
     if not keep_alive:
@@ -206,6 +302,18 @@ def prepare_session(site_name: str, site: dict[str, Any], cookies_file: Path | N
             meta["password_login"] = huawei_password_login(session, site, username, password, timeout)
             meta["auth_check_after_login"] = check_auth(session, site, timeout)
         meta["keep_alive"] = refresh_huawei_roarand(session, site, timeout)
+
+    if site.get("auth_type") == "kehua_energy":
+        auth = kehua_check_auth(session, site, timeout)
+        meta["auth_check_before_login"] = auth
+        if not auth.get("success"):
+            username = os.getenv("KEHUA_USERNAME")
+            password = os.getenv("KEHUA_PASSWORD")
+            if username and password:
+                meta["password_login"] = kehua_password_login(session, site, username, password, timeout)
+                meta["auth_check_after_login"] = kehua_check_auth(session, site, timeout)
+            else:
+                meta["password_login"] = {"success": False, "reason": "credentials_not_configured"}
 
     return session, meta
 

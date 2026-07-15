@@ -24,8 +24,9 @@ SUPABASE_SECRET_KEY
 FRONTEND_ORIGIN
 HUAWEI_USERNAME
 HUAWEI_PASSWORD
+KEHUA_USERNAME
+KEHUA_PASSWORD
 HUAWEI_COOKIES_JSON
-KEHUA_COOKIES_JSON
 REFRESH_SECRET
 ```
 
@@ -76,6 +77,12 @@ uvicorn api:app --reload --host 0.0.0.0 --port 8000
 
 The service loads this local `.env` automatically and supports multiline JSON
 cookie exports. Runtime environment variables supplied by Render take precedence.
+
+Kehua cookies are optional when `KEHUA_USERNAME` and `KEHUA_PASSWORD` are set.
+Before each scrape the backend validates the current authorization token. If it
+has expired, the backend reproduces Kehua's signed login request and uses the new
+token only in server memory for that scrape. Credentials and tokens are excluded
+from API responses and authentication summaries.
 
 Liveness-only smoke test:
 

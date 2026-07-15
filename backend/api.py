@@ -105,9 +105,10 @@ def build_scrape_args() -> SimpleNamespace:
 
     if env_enabled("ENABLE_KEHUA"):
         cookie_path = cookie_paths["kehua"]
-        if not cookie_path:
-            raise RuntimeError("KEHUA_COOKIES_JSON is required while ENABLE_KEHUA=true")
-        sites.append(f"kehua:{ROOT / 'kehua_api_blueprint.json'}:{cookie_path}")
+        binding = f"kehua:{ROOT / 'kehua_api_blueprint.json'}"
+        if cookie_path:
+            binding += f":{cookie_path}"
+        sites.append(binding)
 
     if not sites:
         raise RuntimeError("No monitoring sites are enabled")

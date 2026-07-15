@@ -30,7 +30,10 @@
     "login_url": "https://energy.kehua.com/sellerLogin",
     "dashboard_url": "https://energy.kehua.com/monitorOw",
     "cookie_domains": ["energy.kehua.com", ".kehua.com"],
-    "auth_type": "cookie_only",
+    "auth_type": "kehua_energy",
+    "auth_check": "https://energy.kehua.com/necp/server-user/auth/web/getUserInfo",
+    "password_login": "https://energy.kehua.com/necp/server-user/auth/web/login",
+    "web_version": "3.0.4",
     "monitoring_keywords": [
       "/server-maintenance/monitor",
       "/server-maintenance/station",
